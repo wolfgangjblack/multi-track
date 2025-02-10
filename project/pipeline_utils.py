@@ -332,7 +332,7 @@ class VehicleTracker:
                     ##can expand this to handle multi case senarios but would
                     ##need to figure out how we want to compare output to groundtruth
                     ##ie. does each frame have its own ground truth file for all objs? 
-                    with open(os.path.join(output_dir,'bbox.txt'), 'w') as f:
+                    with open(os.path.join(output_dir,'bbox.txt'), 'a') as f:
                             f.write(f'{track_id},{x1},{y1},{x2},{y2}\n')
 
             output_path = os.path.join(output_dir, frame_name)
