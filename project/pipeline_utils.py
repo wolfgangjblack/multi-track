@@ -109,7 +109,7 @@ class VehicleTracker:
     def __init__(self, 
                  feature_dim: int = 128,
                  max_missed_frames: int = 30,
-                 min_confidence: float = 0.51,
+                 min_confidence: float = 0.6,
                  iou_threshold: float = 0.3,
                  feature_threshold: float = 0.7):
         self.tracks: Dict[int, Track] = {}
@@ -125,7 +125,7 @@ class VehicleTracker:
         
     def extract_features(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
         """Extract features from image region defined by bbox."""
-        x1, y1, x2, y2 = map(int, bbox)
+        x1, y1, x2, y2 = map(float, bbox)
         crop = image[y1:y2, x1:x2]
         crop = cv2.resize(crop, (224, 224))
         
@@ -259,7 +259,7 @@ class VehicleTracker:
                        'label': track.label}
             for track_id, track in self.tracks.items()
         }
-
+    
     def process_frame(self,
                     frame: np.ndarray,
                     yolo_model,
@@ -270,27 +270,39 @@ class VehicleTracker:
                                     7:'truck'}) -> Dict[int, np.ndarray]:
         """
         Process a single frame for a dictionary of yolo classes. 
-        Here we assume the we're interested in vehicles: 
-        yolo_cls = {'bicycle':1, 'car':2, 'motorcycle':3, 'bus':5, 'truck':7}
-        For a full list of items to detect, initialize the yolo model and check 
-        yolo_model.names for the pretrained detection capabilities.
+        Here we assume we're interested in vehicles.
+        Updated for newer YOLO format that returns Results objects.
         """
-        results = yolo_model(frame) #outputs bbox, confidence, class
-        yolo_cls = list(yolo_labels.keys())
-
-        # Convert YOLO results to our Detection format
+        results = yolo_model(frame, classes=list(yolo_labels.keys()))
         detections = []
 
-        for *xyxy, conf, cls in results.xyxy[0]: 
-            if int(cls) in yolo_cls: 
-                bbox = np.array(xyxy)
-                features = self.extract_features(frame, bbox)
-                label = yolo_labels[int(cls)]
-                detections.append(Detection(bbox, float(conf), features, int(cls), label))
+        # Process each detection in the frame
+        for result in results:  # Iterate through results
+            boxes = result.boxes.data  # Get all boxes from this result
+            
+            # Process each box in this result
+            for box in boxes:
+                # Extract data from tensor
+                x1, y1, x2, y2, conf, cls_id = box.cpu().numpy()
+                cls = int(cls_id)  # Convert to int for dictionary lookup
+                
+                if cls in yolo_labels:  # Check if this class is one we care about
+                    bbox = np.array([x1, y1, x2, y2])
+                    features = self.extract_features(frame, bbox)
+                    label = yolo_labels[cls]
+                    
+                    detections.append(
+                        Detection(
+                            bbox=bbox,
+                            confidence=float(conf),
+                            features=features,
+                            cls=cls,
+                            label=label
+                        )
+                    )
         
-        # Update tracker
-        return self.update(detections)  # Note: removed frame parameter as it's not used in update
-
+        # Update tracker with all detections from this frame
+        return self.update(detections)
     
     def __call__(self, 
                  yolo_model,
@@ -321,7 +333,7 @@ class VehicleTracker:
             for track_id, track_info in tracks.items():
                 bbox = track_info['bbox']
                 label = track_info['label']
-                x1, y1, x2, y2 = map(int, bbox)
+                x1, y1, x2, y2 = map(float, bbox)
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(img, f"{track_id}:{label}",
                              (x1, y1 - 10), 

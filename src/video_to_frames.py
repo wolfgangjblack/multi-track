@@ -1,10 +1,24 @@
 import os
 import cv2
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Extract frames from a video')
+    parser.add_argument('--video_uri', type=str, required=True, help='Directory and video file name')
+    parser.add_argument('--output_dir', type=str, required=True, help='Directory to save output frames - use this with inference.py')
+    return parser.parse_args()
+
+args = parse_args()
+video_uri = args.data_dir
+output_dir = args.output_dir
+save_text = args.save_text
 
 def extract_frames(video_path, output_dir, fps=10):
+    # Create output directory if it doesn't exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
+    # Open the video file
     video = cv2.VideoCapture(video_path)
     
     # Get video properties
@@ -34,5 +48,3 @@ def extract_frames(video_path, output_dir, fps=10):
     video.release()
     print(f'Extracted {saved_count} frames at {fps} FPS')
     print(f'Frames saved to: {output_dir}')
-
-
