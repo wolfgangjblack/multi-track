@@ -125,7 +125,7 @@ class VehicleTracker:
         
     def extract_features(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
         """Extract features from image region defined by bbox."""
-        x1, y1, x2, y2 = map(float, bbox)
+        x1, y1, x2, y2 = map(int, bbox)
         crop = image[y1:y2, x1:x2]
         crop = cv2.resize(crop, (224, 224))
         
@@ -333,7 +333,7 @@ class VehicleTracker:
             for track_id, track_info in tracks.items():
                 bbox = track_info['bbox']
                 label = track_info['label']
-                x1, y1, x2, y2 = map(float, bbox)
+                x1, y1, x2, y2 = map(int, bbox)
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(img, f"{track_id}:{label}",
                              (x1, y1 - 10), 
@@ -345,7 +345,7 @@ class VehicleTracker:
                     ##need to figure out how we want to compare output to groundtruth
                     ##ie. does each frame have its own ground truth file for all objs? 
                     with open(os.path.join(output_dir,'bbox.txt'), 'a') as f:
-                            f.write(f'{track_id},{x1},{y1},{x2},{y2}\n')
+                            f.write(f'{track_id},{x1},{y1},{x2},{y2},{label}, \n')
 
             output_path = os.path.join(output_dir, frame_name)
             cv2.imwrite(output_path, img)
