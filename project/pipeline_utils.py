@@ -3,6 +3,7 @@ import cv2
 import torch
 import numpy as np
 import torch.nn as nn
+from ultralytics import YOLO
 from typing import List, Dict
 import torch.nn.functional as F
 from torchvision.models import resnet18
@@ -20,12 +21,25 @@ class FeatureExtractor(nn.Module):
         - this could be a more efficient network like a mobilenet, but this would likely need to be trained on our dataset
     - note: embeddings should not exceed the last layer output dims
     """
-    def __init__(self, embedding_dim=128):
+    def __init__(self,
+                 embedding_dim=128,
+                 device='auto'):
         super().__init__()
         base_model = resnet18(pretrained=True) 
         self.backbone = nn.Sequential(*list(base_model.children())[:-1])
         self.embedding = nn.Linear(512, embedding_dim)
         
+        ##I developed on a mac because my computer is still packed up
+        ##But I wanted to make sure the code would run on a GPU or on metal
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available()
+                                    else 'mps' if torch.backends.mps.is_available()
+                                    else 'cpu')
+        else:
+            self.device = device
+
+        self.to(self.device)
+
     def forward(self, x):
         x = self.backbone(x)
         x = x.view(x.size(0), -1)
@@ -34,9 +48,12 @@ class FeatureExtractor(nn.Module):
     
 class VehicleTracker:
     """
-    A simple vehicle tracker using velocity prediction and feature similarity.
+    A simple vehicle tracking pipeline class using velocity prediction and feature similarity.
     A velocity prediction help us predict the next location of a vehicle based on its previous locations.
-    Feature similarity helps us match detections to tracks based on appearance.
+    This is based off the assumption that vehicles move smoothly between frames and loosely looks like 
+    newton raphson interpolation if you don't think too hard about it. 
+    The Feature similarity uses embeddings from a pretrained deep learning model and 
+    helps us match detections to tracks based on appearance.
     
     Parameters:
     - feature_dim: Dimensionality of the features extracted from the image
@@ -50,38 +67,129 @@ class VehicleTracker:
                  max_missed_frames: int = 30,
                  min_confidence: float = 0.6,
                  iou_threshold: float = 0.3,
-                 feature_threshold: float = 0.7):
+                 feature_threshold: float = 0.7,
+                 device: str = 'auto',
+                 yolo_model: str = 'yolo11s.pt',
+                 yolo_labels: Dict[int,str] = {1:'bicycle',
+                                    2:'car',
+                                    3:'motorcycle',
+                                    5:'bus',
+                                    7:'truck'},
+                 batch_size: int = 4):
+
         self.tracks: Dict[int, Track] = {}
         self.next_id = 0
         self.max_missed_frames = max_missed_frames
         self.min_confidence = min_confidence
         self.iou_threshold = iou_threshold
         self.feature_threshold = feature_threshold
+        self.batch_size = batch_size
         
+
+
         # Initialize feature extractor
-        self.feature_extractor = FeatureExtractor(embedding_dim=feature_dim)
+        self.feature_extractor = FeatureExtractor(embedding_dim=feature_dim, device = device)
         self.feature_extractor.eval()
+        self.yolo_labels = yolo_labels
+        self.device = self.feature_extractor.device
+
+        # Initialize Yolo model
+        self.yolo_model = YOLO(yolo_model).to(self.device)
+
+    def extract_features(self,
+                         images: List[np.ndarray],
+                         bboxes: List[np.ndarray]) -> np.ndarray:
+        """
+        Extract features from image region defined by bbox using resnet18. 
+        In the future we need to consider
+        1. updating to a more modern architecture (I recommend DeiT)
+        2. finetuning on data of interest, with data augmentation
+        3. distilling large DieT model down to a smaller model for inference
+        """
+
+        crops = []
+        for img, bbox in zip(images, bboxes):
+            x1, y1, x2, y2 = map(int, bbox)
+            crop = img[y1:y2, x1:x2]
+            crop = cv2.resize(crop, (224, 224))
+            crops.append(crop)
         
-    def extract_features(self, image: np.ndarray, bbox: np.ndarray) -> np.ndarray:
-        """Extract features from image region defined by bbox."""
-        x1, y1, x2, y2 = map(int, bbox)
-        crop = image[y1:y2, x1:x2]
-        crop = cv2.resize(crop, (224, 224))
+        batch = torch.from_numpy(np.stack(crops)) \
+            .permute(0, 3, 1, 2).float() / 255.0
         
-        crop = torch.from_numpy(crop).permute(2, 0, 1).float() / 255.0
-        crop = crop.unsqueeze(0)  # Add batch dimension
+        batch = batch.to(self.feature_extractor.device)
         
         with torch.no_grad():
-            features = self.feature_extractor(crop)
+            features = self.feature_extractor(batch)
         
-        return features.numpy().squeeze()
+        return features.cpu().numpy()
+    
+    def get_batch_detections(self, 
+                             frames: List[np.ndarray],
+                             results) -> List[List[Detection]]:
+        """
+        Processes output from YOLO model to get detections for each frame in a batch.
+        Passes bounding boxes into feature extractor to get features.
+        """
+        detections = []
+        for frame_idx, (frame, result) in enumerate(zip(frames, results)):
+            frame_detections = []
+            boxes = result.boxes.data.cpu()
+
+            batch_boxes = []
+            batch_images = []
+            batch_info = []
+
+            for box in boxes:
+                x1, y1, x2, y2, conf, cls_id = box.numpy()
+                cls = int(cls_id)
+
+                if cls in self.yolo_labels:
+                    bbox = np.array([x1, y1, x2, y2])
+                    batch_boxes.append(bbox)
+                    batch_images.append(frame)
+                    batch_info.append((float(conf), cls))
+
+                    if len(batch_boxes) == self.batch_size:
+                        features = self.extract_features(batch_images, batch_boxes)
+                        
+                        for i, ((conf, cls), bbox, feat) in enumerate(zip(batch_info, batch_boxes, features)):
+                            frame_detections.append(
+                                Detection(
+                                    bbox=bbox,
+                                    confidence=conf,
+                                    features=feat,
+                                    cls=cls,
+                                    label=self.yolo_labels[cls]
+                                )
+                            )
+
+                        batch_boxes = []
+                        batch_images = []
+                        batch_info = []
+
+            if batch_boxes:
+                features = self.extract_features(batch_images, batch_boxes)
+                
+                for i, ((conf, cls), bbox, feat) in enumerate(zip(batch_info, batch_boxes, features)):
+                    frame_detections.append(
+                        Detection(
+                            bbox=bbox,
+                            confidence=conf,
+                            features=feat,
+                            cls=cls,
+                            label=self.yolo_labels[cls]
+                        )
+                    )
+            detections.append(frame_detections)
+
+        return detections
     
     def compute_similarity(self, detection: Detection, track: Track) -> float:
         """
         Enhanced similarity computation that accounts for motion uncertainty
         """
         predicted_bbox = track.motion_model.predict()
-        uncertainty = track.motion_model.get_state_uncertainty()
         
         # Convert from [x, y, w, h] to [x1, y1, x2, y2] format
         predicted_bbox = np.array([
@@ -94,10 +202,9 @@ class VehicleTracker:
         iou = self._compute_iou(predicted_bbox, detection.bbox)
         feature_sim = np.dot(detection.features, track.features)
         
-        # Adjust weights based on uncertainty
         # When uncertainty is high, trust features more than position
-        motion_weight = 0.5 / (1 + uncertainty)
-        feature_weight = 1 - motion_weight
+        motion_weight = 0.5
+        feature_weight = 0.5
         
         similarity = motion_weight * iou + feature_weight * feature_sim
         
@@ -119,7 +226,13 @@ class VehicleTracker:
     
     def update(self,
                detections: List[Detection]) -> Dict[int, np.ndarray]:
-        """Updates with new detections."""
+        """
+        Updates the tracks with new detections using the bounding boxes and
+        features from the YOLO model.
+        First we use predict to add velocity to the current position
+        then we compare the similarity of the predicted position to the actual (and the features)
+        Using this we can match detections to tracks and update the motion model
+        """
         # Filter low confidence detections
         detections = [d for d in detections if d.confidence > self.min_confidence]
         
@@ -206,92 +319,51 @@ class VehicleTracker:
             for track_id, track in self.tracks.items()
         }
     
-    def process_frame(self,
-                    frame: np.ndarray,
-                    yolo_model,
-                    yolo_labels = {1:'bicycle',
-                                    2:'car',
-                                    3:'motorcycle',
-                                    5:'bus',
-                                    7:'truck'}) -> Dict[int, np.ndarray]:
-        """
-        Process a single frame for a dictionary of yolo classes. 
-        Here we assume we're interested in vehicles.
-        Updated for newer YOLO format that returns Results objects.
-        """
-        results = yolo_model(frame, classes=list(yolo_labels.keys()))
-        detections = []
-
-        # Process each detection in the frame
-        for result in results:  # Iterate through results
-            boxes = result.boxes.data  # Get all boxes from this result
-            
-            # Process each box in this result
-            for box in boxes:
-                # Extract data from tensor
-                x1, y1, x2, y2, conf, cls_id = box.cpu().numpy()
-                cls = int(cls_id)  # Convert to int for dictionary lookup
-                
-                if cls in yolo_labels:  # Check if this class is one we care about
-                    bbox = np.array([x1, y1, x2, y2])
-                    features = self.extract_features(frame, bbox)
-                    label = yolo_labels[cls]
-                    
-                    detections.append(
-                        Detection(
-                            bbox=bbox,
-                            confidence=float(conf),
-                            features=features,
-                            cls=cls,
-                            label=label
-                        )
-                    )
+    def process_frames_batch(self,
+                           frames: List[np.ndarray]) -> List[Dict[int, np.ndarray]]:
+        """Process a batch of frames."""
+        results = self.yolo_model(frames, classes=list(self.yolo_labels.keys()))
         
-        # Update tracker with all detections from this frame
-        return self.update(detections)
-    
+        # Process detections in batch
+        detections = self.get_batch_detections(frames, results)
+        
+        # Update tracker for each frame's detections
+        return [self.update(detections) for detections in detections]
+      
     def __call__(self, 
-                 yolo_model,
                  data_dir: str, 
                  output_dir: str,
-                 save_txt:bool = False 
-                 ):
+                 save_txt:bool = False, 
+                 save_frames: bool = True):
         """
         Process a video and save the results to an output directory.
         """
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        idx = 0
-        for frame_name in sorted(os.listdir(data_dir)):
-            #I choose not to do enumerate here because users may put
-            #other files within their directory that are not images
-            if not frame_name.endswith('.jpg'):
-                #Can expand this with better file checking
-                continue
-
-            idx += 1
-
-            frame_path = os.path.join(data_dir, frame_name)
-            img = cv2.imread(frame_path)
-            tracks = self.process_frame(img, yolo_model)
+        image_files = sorted([f for f in os.listdir(data_dir) if f.endswith('.jpg')])
+        
+        for i in range(0, len(image_files), self.batch_size):
+            batch_files = image_files[i:i+self.batch_size]
             
-            for track_id, track_info in tracks.items():
-                bbox = track_info['bbox']
-                label = track_info['label']
-                x1, y1, x2, y2 = map(int, bbox)
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img, f"{track_id}:{label}",
-                             (x1, y1 - 10), 
-                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
-                if save_txt:
-                    ##Right now we're assuming a single class single object
-                    ##can expand this to handle multi case senarios but would
-                    ##need to figure out how we want to compare output to groundtruth
-                    ##ie. does each frame have its own ground truth file for all objs? 
-                    with open(os.path.join(output_dir,'bbox.txt'), 'a') as f:
-                            f.write(f'{track_id},{x1},{y1},{x2},{y2},{label}, \n')
+            frame_paths = [os.path.join(data_dir, f) for f in batch_files]
+            frames = [cv2.imread(f) for f in frame_paths]
 
-            output_path = os.path.join(output_dir, frame_name)
-            cv2.imwrite(output_path, img)
+            batch_tracks = self.process_frames_batch(frames)
+
+            for frame_name, img, tracks in zip(batch_files, frames, batch_tracks):
+                for track_id, track_info in tracks.items():
+                    bbox = track_info['bbox']
+                    label = track_info['label']
+                    x1, y1, x2, y2 = map(int, bbox)
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(img, f"{track_id}:{label}",
+                            (x1, y1 - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                
+                    if save_txt:
+                        with open(os.path.join(output_dir, 'bbox.txt'), 'a') as f:
+                            f.write(f'{track_id},{x1},{y1},{x2},{y2},{label},\n')
+                if save_frames:
+                    output_path = os.path.join(output_dir, frame_name)
+                    cv2.imwrite(output_path, img)
