@@ -26,7 +26,7 @@ class Detection:
 class Track:
     """
     tracker object to handle tracking of vehicles
-    designed to use a kalman filter for multiframe tracking
+    designed to use a kalman filter for occlusion handling
     """
     id: int
     kalman: KalmanFilter
@@ -45,7 +45,6 @@ class FeatureExtractor(nn.Module):
     2. Replace the model with a more suitable one
         - this could be a transformer based model which can capture more information with attention
         - this could be a more efficient network like a mobilenet, but this would likely need to be trained on our dataset
-    
     - note: embeddings should not exceed the last layer output dims
     """
     def __init__(self, embedding_dim=128):
