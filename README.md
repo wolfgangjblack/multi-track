@@ -62,11 +62,12 @@ As an AI engineer who prioritizes production code and getting MVP prototypes I w
     - Usage `python src/eval.py --ground_truth_dir <path> --predicted_bb_dir <path>`
     - Note: This currently only works with single_class examples. Can scale this up to multiclass examples
 
-### 
+### Drawbacks and other ideas
 1. I considered using a segmentation model (ClipSeg or SAM) instead of a YOLO model, but these id models don't output bounding boxes natively
+    - what's interesting is we can utilize these models in concert with a VLM and sort of interrogate the images. We can capture all the objects in a sequence of frames and ask the VLMs to describe the motion, behavior, changes, etc. This would be a great project but beyond the scope of this quick interview
 2. For tracking I did implement Kalman (filterpy) - then i saw it wasn't allowed. 
 3. We have some short comings when trees/objects block the car. I beleive this is largely in part due to the yolo model. I'd like to explore using other detection models to determine if we can improve this. AS an aside the YOLO model implementation can totally drop or displace smaller objects like motorcycles. 
-4. I'd like to explore using a more sophisticated model fro the feature extractor. The feature extractor I'd consider using with more data is a DeiT. These transformer models have better feature extraction techniques, but might be over kill for a single car method
+4. I'd like to explore using a more sophisticated model for the feature extractor. The feature extractor I'd consider using with more data is a DeiT. These transformer models have better feature extraction techniques, but might be over kill for a single car method
 5. I choose the YOLO and resnet18 models for a number of reasons:
  - YOLO:
     - it's already trained to detect vehicles
@@ -78,5 +79,7 @@ As an AI engineer who prioritizes production code and getting MVP prototypes I w
     - trained on ImageNet which has cars
     - can be used in Onnx/TensorRT
     - supports batching
+6. Does not really handle occlusion, blurring, or light. We can improve this utilizing all of this - but since I'm not a perception engineer, rather more an ML/GenAI engineer I'd have to do more research there. 
+
 
 I also tend to start projects with simple models over more complex models, just so we can understand the limits to the data/performance as well as try to save costs. 

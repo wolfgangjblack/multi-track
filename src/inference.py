@@ -14,10 +14,13 @@ def parse_args():
     return parser.parse_args()
 
 args = parse_args()
+batch_size = args.batch_size
 data_dir = args.data_dir
 output_dir = args.output_dir
 save_text = args.save_text
 
-tracker = VehicleTracker()
+tracker = VehicleTracker(batch_size=batch_size)
 
 tracker(data_dir, output_dir, save_text)
+
+print(f"Results saved at {output_dir}")
