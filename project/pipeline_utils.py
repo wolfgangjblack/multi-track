@@ -5,37 +5,10 @@ import numpy as np
 import torch.nn as nn
 from typing import List, Dict
 import torch.nn.functional as F
-from dataclasses import dataclass
 from torchvision.models import resnet18
-from filterpy.kalman import KalmanFilter
+from project.motion import SimpleMotionModel
 from scipy.optimize import linear_sum_assignment
-
-@dataclass
-class Detection:
-    """
-    Data object to handle YOLO model outputs
-    This is designed for yolo specifically 
-    """
-    bbox: np.ndarray  # [x1, y1, x2, y2]
-    confidence: float
-    features: np.ndarray
-    cls: int
-    label: str
-    
-@dataclass
-class Track:
-    """
-    tracker object to handle tracking of vehicles
-    designed to use a kalman filter for occlusion handling
-    """
-    id: int
-    kalman: KalmanFilter
-    features: np.ndarray
-    history: List[np.ndarray]  # List of past positions
-    age: int
-    missed_frames: int
-    cls: int
-    label: str 
+from project.data_classes import Detection, Track
 
 class FeatureExtractor(nn.Module):
     """
@@ -58,44 +31,11 @@ class FeatureExtractor(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.embedding(x)
         return F.normalize(x, p=2, dim=1)  # L2 normalize embeddings
-
-def create_kalman_filter():
-    """
-    Create a Kalman filter for tracking vehicles
-    This is a simple 8D Kalman filter. 
-    State: [x, y, width, height, dx, dy, dw, dh]
-    """
-    kf = KalmanFilter(dim_x=8, dim_z=4)
     
-    # State: [x, y, width, height, dx, dy, dw, dh]
-    kf.F = np.array([
-        [1, 0, 0, 0, 1, 0, 0, 0],
-        [0, 1, 0, 0, 0, 1, 0, 0],
-        [0, 0, 1, 0, 0, 0, 1, 0],
-        [0, 0, 0, 1, 0, 0, 0, 1],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-    ])
-    
-    kf.H = np.array([
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-    ])
-    
-    kf.Q = np.eye(8) * 0.1  # Process noise
-    kf.R = np.eye(4) * 1.0  # Measurement noise
-    kf.P = np.eye(8) * 10.0  # Initial state uncertainty
-    
-    return kf
-
 class VehicleTracker:
     """
-    A simple vehicle tracker using Kalman filters and feature similarity.
-    Kalman filters help us predict the next location of a vehicle based on its previous locations.
+    A simple vehicle tracker using velocity prediction and feature similarity.
+    A velocity prediction help us predict the next location of a vehicle based on its previous locations.
     Feature similarity helps us match detections to tracks based on appearance.
     
     Parameters:
@@ -138,24 +78,31 @@ class VehicleTracker:
     
     def compute_similarity(self, detection: Detection, track: Track) -> float:
         """
-        Compute similarity between a detection and a track.
-        This is a hybrid solution so we can try to identify
-        a specific object based on its features and its location - 
-        even if there are very similar objects in each frame.
+        Enhanced similarity computation that accounts for motion uncertainty
         """
-        track.kalman.predict()
-        predicted_bbox = track.kalman.x[:4]
+        predicted_bbox = track.motion_model.predict()
+        uncertainty = track.motion_model.get_state_uncertainty()
+        
+        # Convert from [x, y, w, h] to [x1, y1, x2, y2] format
+        predicted_bbox = np.array([
+            predicted_bbox[0],
+            predicted_bbox[1],
+            predicted_bbox[0] + predicted_bbox[2],
+            predicted_bbox[1] + predicted_bbox[3]
+        ])
         
         iou = self._compute_iou(predicted_bbox, detection.bbox)
-        
-        # Feature similarity - based on 
         feature_sim = np.dot(detection.features, track.features)
         
-        # Combine similarities (you can adjust weights)
-        similarity = 0.5 * iou + 0.5 * feature_sim
+        # Adjust weights based on uncertainty
+        # When uncertainty is high, trust features more than position
+        motion_weight = 0.5 / (1 + uncertainty)
+        feature_weight = 1 - motion_weight
+        
+        similarity = motion_weight * iou + feature_weight * feature_sim
         
         return similarity
-    
+
     def _compute_iou(self, bbox1: np.ndarray, bbox2: np.ndarray) -> float:
         """Compute IoU between two bounding boxes."""
         x1 = max(bbox1[0], bbox2[0])
@@ -177,7 +124,7 @@ class VehicleTracker:
         detections = [d for d in detections if d.confidence > self.min_confidence]
         
         for track in self.tracks.values():
-            track.kalman.predict()
+            track.motion_model.predict()
         
         similarity_matrix = np.zeros((len(detections), len(self.tracks)))
         for i, detection in enumerate(detections):
@@ -209,8 +156,8 @@ class VehicleTracker:
             track = self.tracks[track_id]
             detection = detections[detection_idx]
             
-            # Update Kalman filter
-            track.kalman.update(detection.bbox)
+            # Update the motion model with the new detection
+            track.motion_model.update(detection.bbox)
             
             # Update features with moving average
             track.features = 0.9 * track.features + 0.1 * detection.features
@@ -236,12 +183,12 @@ class VehicleTracker:
         # Initialize new tracks
         for detection_idx in unmatched_detections:
             detection = detections[detection_idx]
-            new_kalman = create_kalman_filter()
-            new_kalman.x[:4] = detection.bbox.reshape((4, 1))
+            new_mm = SimpleMotionModel()
+            new_mm.update(detection.bbox)
             
             self.tracks[self.next_id] = Track(
                 id=self.next_id,
-                kalman=new_kalman,
+                motion_model=new_mm,
                 features=detection.features,
                 history=[detection.bbox],
                 age=1,
