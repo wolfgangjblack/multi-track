@@ -69,8 +69,7 @@ I also include some pseudocode for model training. This is pseudo-code but could
         - resnet18 reference: [Resnet traning code I wrote for another project](https://github.com/wolfgangjblack/multimodal-moderation-pipeline/blob/main/src/resnet_training_utils.py)
         - transformer training reference: [Vision Transformer finetuning code I wrote](https://github.com/wolfgangjblack/multimodal-moderation-pipeline/blob/main/src/vit_training_utils.py)
     - shortcomings: we really need to flesh out the data utils for how the frames save data to be used for training. ideally we'd save the bounding boxes and their cropped images by class. This could be used by both models. We'd maintain the yolo class indexes, but would have to modify them for the resnet/whatever backbone model we used
-
-1. the yolo_train loop is from ultralytics and 
+- I also added a pytest framework for unittests. to run locally try `pytest --cov=project --cov-report=term-missing`
 
 ### Drawbacks and other ideas
 1. I considered using a segmentation model (ClipSeg or SAM) instead of a YOLO model, but these id models don't output bounding boxes natively
