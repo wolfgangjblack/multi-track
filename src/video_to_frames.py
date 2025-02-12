@@ -1,50 +1,23 @@
 import os
 import cv2
+import sys
 import argparse
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from project.pipeline_utils import load_config
+from project.data_utils import extract_frames
+
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Extract frames from a video')
-    parser.add_argument('--video_uri', type=str, required=True, help='Directory and video file name')
-    parser.add_argument('--output_dir', type=str, required=True, help='Directory to save output frames - use this with inference.py')
+    parser = argparse.ArgumentParser(description='Object Tracking in images')
+    parser.add_argument('--config', type=str, required=True, help='Path to the JSON config file')
     return parser.parse_args()
 
-args = parse_args()
-video_uri = args.data_dir
-output_dir = args.output_dir
-save_text = args.save_text
 
-def extract_frames(video_path, output_dir, fps=10):
-    # Create output directory if it doesn't exist
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    # Open the video file
-    video = cv2.VideoCapture(video_path)
-    
-    # Get video properties
-    original_fps = video.get(cv2.CAP_PROP_FPS)
-    frame_interval = int(original_fps / fps)
-    
-    # Initialize frame counter
-    frame_count = 0
-    saved_count = 0
-    
-    while True:
-        success, frame = video.read()
-        
-        if not success:
-            break
-            
-        # Save frame at desired intervals
-        if frame_count % frame_interval == 0:
-            frame_name = f'frame_{saved_count:04d}.jpg'
-            output_path = os.path.join(output_dir, frame_name)
-            cv2.imwrite(output_path, frame)
-            saved_count += 1
-            
-        frame_count += 1
-    
-    # Clean up
-    video.release()
-    print(f'Extracted {saved_count} frames at {fps} FPS')
-    print(f'Frames saved to: {output_dir}')
+args = parse_args()
+config = load_config(args.config)
+
+video_path = config['videopath']
+output_dir = config['savedir']
+fps = config.get('fps', 10)
+
+extract_frames(video_path, output_dir, fps)
