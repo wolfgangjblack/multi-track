@@ -1,10 +1,13 @@
+black==23.12.1
 ipykernel==6.29.5
 ipython==8.32.0
+isort==5.13.2
 jupyter_client==8.6.3
 jupyter_core==5.7.2
 kiwisolver==1.4.8
 matplotlib==3.10.0
 matplotlib-inline==0.1.7
+mypy==1.8.0
 numpy==2.1.1
 opencv-python==4.11.0.86
 pandas==2.2.3
@@ -12,6 +15,7 @@ pillow==11.1.0
 pytest==8.3.4
 pytest-cov==6.0.0
 requests==2.32.3
+ruff==0.3.0
 scipy==1.15.1
 seaborn==0.13.2
 torch==2.6.0

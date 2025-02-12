@@ -1,5 +1,5 @@
-from .motion import SimpleMotionModel
+from .data_classes import Detection, Track
 from .data_utils import extract_frames
-from .data_classes import Track, Detection
-from .eval_utils import read_positions_from_file, calculate_iou
+from .eval_utils import calculate_iou, read_positions_from_file
+from .motion import SimpleMotionModel
 from .pipeline_utils import FeatureExtractor, VehicleTracker, load_config
