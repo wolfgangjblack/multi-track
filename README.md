@@ -66,8 +66,8 @@ I also include some pseudocode for model training. This is pseudo-code but could
 - train.py
     - Desc: this pulls training code for yolo provided by ultralytics and my own training code for the backbone feature extractor (resnet18)
         - yolo reference: [ultralyrics training code](https://docs.ultralytics.com/modes/train/#train-settings)
-        - resnet18 reference: [my own code sources for resnet]()
-        - transformer training reference: [I shared this incase we wanted to see transformer training](https://github.com/Open-Model-Initiative/OMI-Training-Pipeline/blob/feat/controlPipeTest/pipelines/dit-control-pipeline-experiments/scripts/dp_training.py)
+        - resnet18 reference: [Resnet traning code I wrote for another project](https://github.com/wolfgangjblack/multimodal-moderation-pipeline/blob/main/src/resnet_training_utils.py)
+        - transformer training reference: [Vision Transformer finetuning code I wrote](https://github.com/wolfgangjblack/multimodal-moderation-pipeline/blob/main/src/vit_training_utils.py)
     - shortcomings: we really need to flesh out the data utils for how the frames save data to be used for training. ideally we'd save the bounding boxes and their cropped images by class. This could be used by both models. We'd maintain the yolo class indexes, but would have to modify them for the resnet/whatever backbone model we used
 
 1. the yolo_train loop is from ultralytics and 
