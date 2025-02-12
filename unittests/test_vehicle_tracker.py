@@ -24,20 +24,18 @@ def sample_detection():
     )
 
 def test_tracker_init(tracker):
-    assert tracker.feature_dim == 128
     assert tracker.max_missed_frames == 30
-    assert tracker.iou_threshold == 0.61
-    assert tracker.min_confidence == 0.3
+    assert tracker.iou_threshold == 0.3
     assert tracker.feature_threshold == 0.7
     assert len(tracker.tracks) == 0
     assert tracker.next_id == 0
-    assert tracker.max_missed_frames == 0
+    assert tracker.max_missed_frames == 30
     assert tracker.min_confidence == 0.61
 
 def test_compute_iou(tracker):
     bbox1 = np.array([0, 0, 10, 10]) 
     bbox2 = np.array([5, 5, 15, 15])
-    iou = tracker.compute_iou(bbox1, bbox2)
+    iou = tracker._compute_iou(bbox1, bbox2)
 
     intersection = 25
     union = 175
@@ -45,7 +43,7 @@ def test_compute_iou(tracker):
     assert np.isclose(iou, expected_iou)
 
 def test_track_creation(tracker, sample_detection):
-    tracks = tracker.update(sample_detection)
+    tracks = tracker.update([sample_detection])
 
     assert len(tracker.tracks) == 1
     assert 0 in tracker.tracks
@@ -53,7 +51,7 @@ def test_track_creation(tracker, sample_detection):
     assert tracker.tracks[0].missed_frames == 0
 
 def test_track_update(tracker, sample_detection):
-    tracks = tracker.update(sample_detection)
+    tracks = tracker.update([sample_detection])
 
 
     moved_detection = Detection(

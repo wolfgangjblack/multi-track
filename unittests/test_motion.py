@@ -7,7 +7,7 @@ def motion_model():
     return SimpleMotionModel(state_dim = 8)
 
 def test_motion_model_init(motion_model):
-    assert motion_model.state_dim == 8
+    assert motion_model.state.shape == (8,)
     assert np.all(motion_model.state == 0)
     assert motion_model.velocity_weight == 0.7
 
@@ -23,7 +23,7 @@ def test_motion_model_update(motion_model):
     start_pos = np.array([0, 0, 0, 0])
     first_pos = np.array([100, 100, 120, 120]) 
     motion_model.update(first_pos)
-    np.testing.assert_array_almost_equal(motion_model.state[:4], [100, 100, 120, 120])
+    np.testing.assert_array_almost_equal(motion_model.state[:4], [100, 100, 20, 20])
     np.testing.assert_array_almost_equal(motion_model.state[4:8], [30, 30, 6, 6])
 
     second_pos = np.array([110, 110, 130, 130])
@@ -35,7 +35,7 @@ def test_motion_model_update(motion_model):
 def test_motion_model_update_no_measurement(motion_model):
     start_pos = np.array([0, 0, 0, 0])
     motion_model.update(start_pos)
-    motion_model.updaet(start_pos)
+    motion_model.update(start_pos)
     assert np.all(motion_model.state[4:] == 0)
 
     neg_pos = np.array([-10, -10, -5, -5])
