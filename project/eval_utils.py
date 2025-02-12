@@ -1,29 +1,30 @@
 from typing import List
 
-def read_positions_from_file(filename: str,
-                             indices: List[int]= [0,5,4,1]):
+
+def read_positions_from_file(filename: str, indices: List[int] = [0, 5, 4, 1]):
     """
     Reads in x1, y1, x2, y2 from a text file given the textfile location
     the indices list maps the variable to the correct x,y value
     - for groundtruth use [0,5,4,1]
-    - for predictions from our feature tracker use [1,2,3,4] 
+    - for predictions from our feature tracker use [1,2,3,4]
     """
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         lines = f.readlines()
 
     output = []
     for line in lines:
-        line = [i for i in line.split('\n')[0].split(',')[:6]]        
+        line = [i for i in line.split("\n")[0].split(",")[:6]]
         output.append(
             [
-                float(line[indices[0]]), 
-                float(line[indices[1]]), 
+                float(line[indices[0]]),
+                float(line[indices[1]]),
                 float(line[indices[2]]),
-                float(line[indices[3]])
+                float(line[indices[3]]),
             ]
         )
 
     return output
+
 
 def calculate_iou(box1, box2):
     # Determine the coordinates of the intersection rectangle
