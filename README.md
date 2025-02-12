@@ -37,8 +37,8 @@ As an AI engineer who prioritizes production code and getting MVP prototypes I w
 
 1. video_to_frames.py
     - Desc: input video and extract frames
-    - Usage: `python src/video_to_frames.py --video_uri <local path to video> --output_dir <output path for frames>`
-    - Note: This was an extra step, while I wont use other videos/sequences of images to train I AM curious about how well this will perform on various sources of data. To prep this, I ended up writing a script to transform videos into frames for processing. 
+    - Usage: `python src/video_to_frames.py --config "config/video.json"`
+    - Note: I shared this step to show preliminary data processing. Ideal we'd have done this in a way where we could train all the models used downstream in the pipeline. This was an extra step, while I wont use other videos/sequences of images to train I AM curious about how well this will perform on various sources of data. To prep this, I ended up writing a script to transform videos into frames for processing. 
 2. inference.py
     Pipeline Flow:
     1. Model Loading
@@ -56,13 +56,19 @@ As an AI engineer who prioritizes production code and getting MVP prototypes I w
     Output:
         - Annotated frames with tracked objects
         - Optional bbox.txt with tracking data
-    Usage: `python src/inference.py --data_dir <path> --output_dir <path> --save_text <bool>`
+    Usage: `python src/inference.py --conifg "config/inference.json"`
 3. eval.py
     - Desc: If we have ground truth labels we can get an IoU evaluation. Do our boxes overlap the object. We'll accept 85% and above 
-    - Usage `python src/eval.py --ground_truth_dir <path> --predicted_bb_dir <path>`
+    - Usage `python src/eval.py --config "config/eval.json"`
     - Note: This currently only works with single_class examples. Can scale this up to multiclass examples
 
 I also include some pseudocode for model training. This is pseudo-code but could be quickly verified to work to help use improve our model. 
+- train.py
+    - Desc: this pulls training code for yolo provided by ultralytics and my own training code for the backbone feature extractor (resnet18)
+        - yolo reference: [ultralyrics training code](https://docs.ultralytics.com/modes/train/#train-settings)
+        - resnet18 reference: [my own code sources for resnet]()
+        - transformer training reference: [I shared this incase we wanted to see transformer training](https://github.com/Open-Model-Initiative/OMI-Training-Pipeline/blob/feat/controlPipeTest/pipelines/dit-control-pipeline-experiments/scripts/dp_training.py)
+    - shortcomings: we really need to flesh out the data utils for how the frames save data to be used for training. ideally we'd save the bounding boxes and their cropped images by class. This could be used by both models. We'd maintain the yolo class indexes, but would have to modify them for the resnet/whatever backbone model we used
 
 1. the yolo_train loop is from ultralytics and 
 
@@ -84,6 +90,5 @@ I also include some pseudocode for model training. This is pseudo-code but could
     - can be used in Onnx/TensorRT
     - supports batching
 6. Does not really handle occlusion, blurring, or light. We can improve this utilizing all of this - but since I'm not a perception engineer, rather more an ML/GenAI engineer I'd have to do more research there. 
-
 
 I also tend to start projects with simple models over more complex models, just so we can understand the limits to the data/performance as well as try to save costs. 
