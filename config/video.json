@@ -1,3 +1,3 @@
-{"video_uri": "./data/my_video/cars_on_highway.mov",
-"output_dir": "./data/multicar_frames/",
+{"videopath": "./data/my_video/cars_on_highway.mov",
+"savedir": "./data/multicar_frames/",
 "fps":30}
