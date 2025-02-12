@@ -1,0 +1,4 @@
+{
+"groundtruth_file": "./data/groundtruth.txt",
+"predictions_file":"./data/single_car_results/bbox.txt"
+}

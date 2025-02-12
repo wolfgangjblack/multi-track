@@ -3,21 +3,21 @@ import os
 import sys
 import argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from project.pipeline_utils import VehicleTracker
+from project.pipeline_utils import VehicleTracker, load_config
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Object Tracking in images')
-    parser.add_argument('--batch_size', type=int, default=10, help='Batch size for inference')
-    parser.add_argument('--data_dir', type=str, required=True, help='Directory containing input images')
-    parser.add_argument('--output_dir', type=str, required=True, help='Directory to save output results')
-    parser.add_argument('--save_text', type=bool, default=False, help='Flag to save bounding boxes as text')
+    parser.add_argument('--config', type=str, required=True, help='Path to the JSON config file')
     return parser.parse_args()
 
+
+
 args = parse_args()
-batch_size = args.batch_size
-data_dir = args.data_dir
-output_dir = args.output_dir
-save_text = args.save_text
+config = load_config(args.config)
+batch_size = config.get('batch_size', 10)
+data_dir = config['datadir']
+output_dir = config['savedir']
+save_text = config.get('save_text', False)
 
 tracker = VehicleTracker(batch_size=batch_size)
 

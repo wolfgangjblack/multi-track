@@ -1,6 +1,8 @@
 import os
 import cv2
+import json
 import torch
+import logging
 import numpy as np
 import torch.nn as nn
 from ultralytics import YOLO
@@ -367,3 +369,19 @@ class VehicleTracker:
                 if save_frames:
                     output_path = os.path.join(output_dir, frame_name)
                     cv2.imwrite(output_path, img)
+
+
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return json.load(f)
+    
+
+def setup_logger():
+    logger = logging.getLogger('train_logger')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger

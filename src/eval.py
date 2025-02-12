@@ -3,18 +3,19 @@ import sys
 import json
 import argparse
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from project import read_positions_from_file, calculate_iou
+from project import read_positions_from_file, calculate_iou, load_config
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Object Tracking in images')
-    parser.add_argument('--groundtruth', type=str, required=True, help='Path to groundtruth.txt file - Single object detection supported only') 
-    parser.add_argument('--predictions', type=str, required=True, help='Path to predictions.txt file - Single object detection supported only')
+    parser.add_argument('--config', type=str, required=True, help='Path to the JSON config file')
     return parser.parse_args()
 
+args = parse_args()
+config = load_config(args.config)
 
 args = parse_args()
-groundtruth_file = args.groundtruth
-predictions_file = args.predictions
+groundtruth_file = config['groundtruth_file']
+predictions_file = config['predictions_file']
 
 groundtruth = read_positions_from_file(groundtruth_file)
 predictions = read_positions_from_file(predictions_file, [1, 2, 3, 4])

@@ -1,32 +1,26 @@
 import os
 import torch
 import argparse
-import logging
 from torch import nn, optim
 from ultralytics import YOLO
 import torchvision.models as models
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
-
-def setup_logger():
-    logger = logging.getLogger('train_logger')
-    logger.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    return logger
+from project.pipeline_utils import load_config, setup_logger
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Object Tracking in images')
-    parser.add_argument('--datadir', type=str, required=True, help='Directory containing input images')
-    parser.add_argument('--epochs', type=int, default=100, help='Number of Epochs for training')
-    parser.add_argument('--savedir', type=str, required=True, help='Directory to save output results and weights')
-    parser.add_argument('--train_yolo', type=bool, default=True, help='Flag to train yolo model')
-    parser.add_argument('--train_backbone', type=bool, default=True, help='Flag to train backbone model')
+    parser.add_argument('--config', type=str, required=True, help='Path to the JSON config file')
     return parser.parse_args()
+
+args = parse_args()
+config = load_config(args.config)
+epochs = config.get('epochs', 100)
+datadir = config['datadir']
+savedir = config['savedir']
+train_yolo = config.get('train_yolo', False)
+train_backbone = config.get('train_backbone', False)
 
 logger = setup_logger()
 args = parse_args()
@@ -34,6 +28,8 @@ datadir = args.datadir
 epochs = args.epochs
 savedir = args.savedir
 train_yolo = args.train_yolo
+yolo_classes = args.yolo_classes
+yolo_classes = {int(k): v for k, v in yolo_classes.items()}
 train_backbone = args.train_backbone
 
 logger.info(f"Data directory: {datadir}")
@@ -43,6 +39,7 @@ logger.info(f"Train YOLO: {train_yolo}")
 logger.info(f"Train Backbone: {train_backbone}")
 
 if train_yolo:
+    ###training code from ultalytics
     logger.info("Starting YOLO training...")
     yolo_dir = os.path.join(savedir, 'ft_yolo')
     logger.info(f"YOLO save directory: {yolo_dir}")
@@ -60,6 +57,7 @@ if train_yolo:
                                save=True,
                                project=yolo_dir,
                                exist_ok=True,
+                               classes=list(yolo_classes.keys()),
                                device=device)
     logger.info("YOLO training completed.")
 
