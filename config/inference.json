@@ -1,0 +1,5 @@
+
+{"batch_size": 10,
+"datadir": "./data/provided_frames/",
+"savedir": "./data/single_car_results/",
+"save_text": true}

@@ -1,0 +1,8 @@
+{"datadir": "./data/training_data",
+"epochs": 100,
+"savedir": "./data/train/",
+"train_backbone": true,
+"train_yolo": true,
+"yolo_classes": {"1":"bicycle", "2":"car", "3":"motorcycle", "5":"bus", "7":"truck"}
+}
+

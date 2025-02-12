@@ -62,6 +62,10 @@ As an AI engineer who prioritizes production code and getting MVP prototypes I w
     - Usage `python src/eval.py --ground_truth_dir <path> --predicted_bb_dir <path>`
     - Note: This currently only works with single_class examples. Can scale this up to multiclass examples
 
+I also include some pseudocode for model training. This is pseudo-code but could be quickly verified to work to help use improve our model. 
+
+1. the yolo_train loop is from ultralytics and 
+
 ### Drawbacks and other ideas
 1. I considered using a segmentation model (ClipSeg or SAM) instead of a YOLO model, but these id models don't output bounding boxes natively
     - what's interesting is we can utilize these models in concert with a VLM and sort of interrogate the images. We can capture all the objects in a sequence of frames and ask the VLMs to describe the motion, behavior, changes, etc. This would be a great project but beyond the scope of this quick interview
